@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"><title>Liftoffle</title>
+  <defs><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+    <rect width="512" height="512" fill="#000"/>
+    <ellipse cx="256" cy="276" rx="196" ry="60" transform="rotate(-18 256 276)" fill="none" stroke="#fff" stroke-width="16"/>
+    <g transform="translate(262 236) rotate(36) scale(1.62)">
+      <g fill="#000" stroke="#000" stroke-width="9" stroke-linejoin="round"><path d="M-17,2 Q-40,20 -38,56 L-17,38 Z"/><path d="M17,2 Q40,20 38,56 L17,38 Z"/><path d="M0,-68 C27,-44 23,6 17,42 L-17,42 C-23,6 -27,-44 0,-68 Z"/><path d="M-11,52 Q-10,98 0,138 Q10,98 11,52 Z"/></g>
+      <g fill="#fff"><path d="M-17,2 Q-40,20 -38,56 L-17,38 Z"/><path d="M17,2 Q40,20 38,56 L17,38 Z"/><path d="M0,-68 C27,-44 23,6 17,42 L-17,42 C-23,6 -27,-44 0,-68 Z"/><path d="M-11,52 Q-10,98 0,138 Q10,98 11,52 Z"/></g>
+      <circle cx="0" cy="-12" r="9" fill="#000"/>
+      <rect x="-22" y="30" width="44" height="4.5" fill="#000"/>
+    </g>
+    <path d="M404,92 Q408.68,113.32 430,118 Q408.68,122.68 404,144 Q399.32,122.68 378,118 Q399.32,113.32 404,92 Z" fill="#fff"/><path d="M116,153 Q118.7,165.3 131,168 Q118.7,170.7 116,183 Q113.3,170.7 101,168 Q113.3,165.3 116,153 Z" fill="#fff"/>
+  </mask></defs>
+  <rect width="512" height="512" fill="#ffffff" mask="url(#m)"/></svg>

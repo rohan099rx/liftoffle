@@ -1,0 +1,44 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:SM;font-weight:700;src:url(../fonts/SpaceMono-Bold.ttf)}
+@font-face{font-family:SM;font-weight:400;src:url(../fonts/SpaceMono-Regular.ttf)}
+*{box-sizing:border-box;margin:0}
+html,body{width:100%;height:100%;overflow:hidden}
+body{font-family:SM,monospace;color:#e8ecff;background:radial-gradient(120% 90% at 70% 110%,#3a1550 0%,#0b0f2e 45%,#05060f 100%);position:relative}
+.stars{position:absolute;inset:0;background-image:
+ radial-gradient(1.6px 1.6px at 12% 18%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 28% 72%,#fff 50%,transparent 51%),
+ radial-gradient(2px 2px at 44% 12%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 63% 38%,#fff 50%,transparent 51%),
+ radial-gradient(1.6px 1.6px at 81% 16%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 92% 64%,#fff 50%,transparent 51%),
+ radial-gradient(1.4px 1.4px at 7% 88%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 55% 90%,#fff 50%,transparent 51%),
+ radial-gradient(1.8px 1.8px at 36% 44%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 74% 82%,#fff 50%,transparent 51%);opacity:.75}
+.orbit{position:absolute;border-radius:50%;border:3px solid transparent;background:linear-gradient(90deg,#5fd3ff,#ff6bd6) border-box;
+ -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:.35}
+.glow{position:absolute;border-radius:50%;background:radial-gradient(closest-side,rgba(255,107,214,.35),transparent)}
+.logo{display:block}
+.tag{color:#8b93b8;letter-spacing:.08em;text-transform:uppercase}
+.chips{display:flex;gap:10px;flex-wrap:wrap}
+.chip{font-weight:700;letter-spacing:.06em;border-radius:10px;padding:8px 14px;border:2px solid currentColor;background:rgba(255,255,255,.04)}
+.t1{color:#9aa4c7}.t2{color:#5fd3ff}.t3{color:#7cff9e}.t4{color:#ffd25f}.t5{color:#ff6bd6}
+.card{background:rgba(8,10,26,.86);border:1.5px solid rgba(255,255,255,.14);border-radius:22px;padding:26px 28px;box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.card small{color:#8b93b8;letter-spacing:.14em;font-size:15px}
+.card h3{font-size:30px;margin:6px 0 16px}
+.row{display:grid;grid-template-columns:150px 1fr 96px;gap:14px;align-items:center;font-size:20px;margin:9px 0}
+.bar{height:10px;border-radius:5px;background:rgba(255,255,255,.1);overflow:hidden}.bar i{display:block;height:100%}
+.url{font-weight:700;letter-spacing:.06em}.url b{color:#ff6bd6}
+.pill{display:inline-flex;gap:10px;align-items:center;font-weight:700;border-radius:999px;padding:10px 20px;background:#ff6bd6;color:#1a0016;letter-spacing:.06em}
+</style></head><body><div class="stars"></div>
+    <div class="glow" style="width:800px;height:800px;left:350px;top:-200px"></div>
+    <div class="orbit" style="width:1700px;height:360px;left:-100px;top:170px;transform:rotate(-8deg)"></div>
+    <div style="position:absolute;left:430px;top:110px;width:560px">
+      <img class="logo" src="../logo/liftoffle-logo-horizontal-dark.svg" style="width:540px">
+      <p style="font-size:30px;font-weight:700;margin:26px 0 12px">Name the thing nobody else will.</p>
+      <p class="tag" style="font-size:18px">Daily word game · Party mode with friends</p>
+    </div>
+    <div style="position:absolute;right:60px;top:70px;width:440px">
+  <div class="card" style="transform:scale(0.86);transform-origin:top left">
+    <small>PROMPT 3 OF 7 · NATURE</small><h3>Name a nocturnal animal</h3>
+    <div class="row"><b>Owl</b><span class="bar"><i style="width:92%;background:#9aa4c7"></i></span><span class="t1">31%</span></div>
+    <div class="row"><b>Bat</b><span class="bar"><i style="width:70%;background:#9aa4c7"></i></span><span class="t1">22%</span></div>
+    <div class="row"><b>Kinkajou</b><span class="bar"><i style="width:8%;background:#ffd25f"></i></span><span class="t4">0.5%</span></div>
+    <div class="row"><b>Aye-aye</b><span class="bar"><i style="width:3%;background:#ff6bd6"></i></span><span class="t5">0.1%</span></div>
+    <div style="margin-top:14px" class="t5"><b>“Aye-aye” → LIGHT-YEAR · +100 🚀</b></div>
+  </div></div></body></html>
