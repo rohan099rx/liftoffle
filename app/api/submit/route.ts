@@ -11,14 +11,14 @@ export async function POST(req: Request) {
   if (!sameOrigin(req)) return json({ error: "bad-origin" }, { status: 403 });
   const p = playerFrom(req);
   const c = p.setCookie;
-  const b = await body<{ runId?: string; round?: number; answer?: string; skip?: boolean }>(req);
+  const b = await body<{ runId?: string; round?: number; answer?: string; skip?: boolean; retry?: boolean }>(req);
   // independent lookups in parallel: each one is a network round trip
   const [overP, overIp, run] = await Promise.all([limited("submit", p.id, 60, 300), limited("submit-ip", clientIp(req), 200, 300), getRun(b?.runId)]);
   if (overP || overIp) return json({ error: "Slow down a little." }, { status: 429, cookie: c });
   const round = Number(b?.round);
   if (!run || run.player !== p.id) return json({ error: "Run not found. Start a new launch." }, { status: 404, cookie: c });
   if (!Number.isInteger(round) || round < 0 || round >= run.prompts.length) return json({ error: "bad-round" }, { status: 400, cookie: c });
-  const [answered, hintUsed] = await Promise.all([kv.get(`answered:${run.id}:${round}`), kv.get(`hintused:${run.id}:${round}`)]);
+  const [answered, hintUsed] = await kv.mget([`answered:${run.id}:${round}`, `hintused:${run.id}:${round}`]); // one round trip
   if (answered) return json({ error: "Already answered." }, { status: 409, cookie: c });
 
   const prompt = run.prompts[round];
@@ -44,7 +44,8 @@ export async function POST(req: Request) {
   if (!answer) return json({ accepted: false, final: false, reason: "Type a real answer (60 characters max)." }, { cookie: c });
 
   let v;
-  try { v = await judge(prompt, answer); }
+  // first attempt: the real judge only. The browser's automatic retry may fall back to "on trust".
+  try { v = await judge(prompt, answer, { trust: b?.retry === true }); }
   catch (e) {
     console.error("judge failed:", (e as Error).message);
     // nothing was used up: the player keeps all their tries and can press LAUNCH again
@@ -63,7 +64,8 @@ export async function POST(req: Request) {
 
   // rarity = how often people in general give this answer (not how often players here did)
   const share = v.prior;
-  const [, profile] = await Promise.all([recordAnswer(prompt, v.canonical, p.id), getProfile(p.id)]);
+  // answers taken on trust (AI judge unavailable) don't count toward what "everyone else said"
+  const [, profile] = await Promise.all([v.unverified ? null : recordAnswer(prompt, v.canonical, p.id), getProfile(p.id)]);
   const tier = tierFor(share);
   const score = hint ? Math.round(tier.score / 2) : tier.score;
   const receipt = await issue({ answer: v.canonical, tier: tier.key, score, hint, share: Math.round(share * 100) / 100 });
@@ -74,7 +76,7 @@ export async function POST(req: Request) {
   const rarestEver = profile.accepted > 0 && share < 3 && (!profile.rarest || share < profile.rarest.share);
   return json({
     accepted: true, final: true, answer: v.canonical, tier: tier.key, tierName: tier.name,
-    score, hint, share: Math.round(share * 100) / 100, quip: quipFor(tier.key, v.canonical, share, v.quip), receipt,
+    score, hint, share: Math.round(share * 100) / 100, quip: v.unverified ? v.quip : quipFor(tier.key, v.canonical, share, v.quip), receipt, unverified: v.unverified || undefined,
     personal: { rarestEver, previousRarest: rarestEver ? profile.rarest : null, answered: profile.accepted + 1 },
   }, { cookie: c });
 }

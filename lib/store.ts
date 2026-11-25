@@ -83,6 +83,13 @@ export async function del(key: string): Promise<void> {
   mem.delete(key);
 }
 
+/** Add `by` to a counter (no retry: not safe to repeat). */
+export async function incrBy(key: string, by: number, ttlSec: number): Promise<number> {
+  if (usingRedis) { const [n] = await pipeline([["INCRBY", key, Math.round(by)], ["EXPIRE", key, ttlSec]]); return Number(n); }
+  const e = alive(key); const n = (e ? Number(JSON.parse(e.v)) : 0) + Math.round(by);
+  mem.set(key, { v: String(n), exp: e?.exp ?? Date.now() + ttlSec * 1000 }); return n;
+}
+
 /** Atomic counter with expiry set on first increment. */
 export async function incr(key: string, ttlSec: number): Promise<number> {
   if (usingRedis) {

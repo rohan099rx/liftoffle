@@ -215,7 +215,13 @@ export default function Home() {
     if (!skip && tried.current.has(norm)) { setCrash({ text: pick(REPEAT_LINES), kind: "joke", seed: Date.now() }); unlock("broken_record"); if (sound) sfx.boing(); inputRef.current?.select(); return; }
     setBusy("Checking with mission control…"); setMsg(null);
     try {
-      const r = await api("/api/submit", { runId: run.runId, round, answer, skip });
+      // the judge can be briefly busy: retry quietly once before bothering the player
+      const r = await api("/api/submit", { runId: run.runId, round, answer, skip }).catch(async (e: Error & { status?: number }) => {
+        if (e.status !== 503) throw e;
+        setBusy("Mission control is double-checking…");
+        await new Promise((res) => setTimeout(res, 2200));
+        return api("/api/submit", { runId: run.runId, round, answer, skip, retry: true });
+      });
       if (!r.final) {
         tried.current.add(norm);
         setCrash({ text: r.reason, kind: r.fail, seed: Date.now() }); setTriesLeft(r.triesLeft ?? null); setCrashKey((k) => k + 1);

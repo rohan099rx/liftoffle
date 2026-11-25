@@ -27,6 +27,7 @@ export const BADGES: Badge[] = [
   { id: "level_ten", e: "👑", name: "Double Digits", how: "Reach level 10" },
   { id: "sky_spotter", e: "🔭", name: "Sky Spotter", how: "Spot 12 things in your Sky Log" },
   { id: "jupiter", e: "🪐", name: "Jupiter Bound", how: "Fly all the way to Jupiter" },
+  { id: "sudden_death", e: "⚔️", name: "Ice in the Veins", how: "Win a Sudden Death final" },
   // the hall of shame
   { id: "crash_dummy", e: "💥", name: "Crash Test Dummy", how: "Get rejected 3 times on one prompt" },
   { id: "cat_keyboard", e: "🐈", name: "Cat on the Keyboard", how: "Submit a keyboard smash" },

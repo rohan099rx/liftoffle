@@ -9,14 +9,17 @@ import { CrashCard, failEmoji, isMash, MASH_LINES, pick, REPEAT_LINES, sfx } fro
 // ------------------------------------------------------------------ types
 type Player = { pid: string; name: string; avatar: string; score: number; done: boolean };
 type Blooper = { text: string; why: string; kind: string };
-type Row = { pid: string; answer: string | null; tier: string | null; base: number; jinx: number; only: number; speed: number; points: number; quip: string; unverified?: boolean; fails?: Blooper[] };
+type Row = { pid: string; answer: string | null; tier: string | null; base: number; jinx: number; only: number; speed: number; points: number; quip: string; unverified?: boolean; fails?: Blooper[]; repeat?: number };
+type Trait = { id: string; name: string; e: string; pct: number };
 type View = {
   code: string; v: number; phase: "lobby" | "starting" | "answer" | "reveal" | "final"; host: string; you: string | null; now: number;
-  settings: { category: string; rounds: number; seconds: number }; round: number; totalRounds: number;
+  settings: { category: string; rounds: number; seconds: number; sudden?: boolean; dna?: boolean }; round: number; totalRounds: number;
+  dna: Record<string, { traits: Trait[]; answers: number; games: number; repeats: number }> | null;
+  sd: { finalists: string[]; done: boolean; winner: string | null } | null; sdSeconds: number; canSudden: boolean;
   prompt: { id: string; text: string; category: string } | null;
   startsAt: number; deadline: number; revealAt: number; takeoverMs: number;
   players: Player[]; myAnswer: { answer: string | null; tries: number; final: boolean; pending: boolean; rejected: string | null; failKind: string | null } | null;
-  results: { prompt: string; rows: Row[] }[];
+  results: { prompt: string; rows: Row[]; sd?: boolean }[];
   reactions: { id: number; pid: string; e: string; at: number }[];
   chat: { id: number; pid: string; name: string; avatar: string; text: string; at: number }[];
   events: { id: number; text: string; at: number; pid?: string }[];
@@ -38,7 +41,7 @@ const ls = {
 export default function Party() {
   const [name, setName] = useState("");
   const [avatar, setAvatar] = useState(AVATARS[0]);
-  const [settings, setSettings] = useState({ category: "anything", rounds: 7, seconds: 30 });
+  const [settings, setSettings] = useState({ category: "anything", rounds: 7, seconds: 30, sudden: true, dna: true });
   const [joinCode, setJoinCode] = useState("");
   const [code, setCode] = useState<string | null>(null);
   const [room, setRoom] = useState<View | null>(null);
@@ -150,6 +153,9 @@ export default function Party() {
   const maxPossible = (room?.totalRounds ?? 7) * 150;
   const skyScore = me ? Math.min(700, Math.round((me.score / Math.max(1, maxPossible)) * 700 * 1.6)) : 0;
   const countdown = room ? Math.ceil((room.startsAt - serverNow) / 1000) : 0;
+  // Sudden Death: the final face-off between the top two
+  const sdLive = !!room?.sd && !room.sd.done && room.phase === "answer";
+  const finalist = !!room?.sd && !!room.you && room.sd.finalists.includes(room.you);
   const timeLeft = room ? Math.max(0, room.deadline - serverNow) : 0;
   const timeFrac = room ? Math.min(1, timeLeft / Math.max(1, room.deadline - room.startsAt)) : 0;
 
@@ -160,7 +166,11 @@ export default function Party() {
     const key = `${room.phase}:${room.round}`;
     if (prevPhase.current === key) return;
     const was = prevPhase.current; prevPhase.current = key;
-    if (room.phase === "answer" && prevRound.current !== room.round) { prevRound.current = room.round; setDraft(""); setFeedback(null); play([392, 523]); }
+    if (room.phase === "answer" && prevRound.current !== room.round) { prevRound.current = room.round; setDraft(""); setFeedback(null); if (room.sd && !room.sd.done) play([196, 196, 233, 262, 196], 0.22); else play([392, 523]); }
+    if (room.phase === "reveal" && was && room.sd?.done && room.results.at(-1)?.sd) {
+      setTimeout(() => play(room.sd!.winner === room.you ? [523, 659, 784, 1047, 1319, 1568] : [262, 330, 392, 523], 0.12), 1900);
+      if (room.sd.winner && room.sd.winner === room.you) setTimeout(() => unlock("sudden_death"), 2400);
+    }
     if (room.phase === "reveal" && was) {
       if (myLast?.points) { setBoostTier(myLast.tier); setBoostKey((k) => k + 1); }
       play(myLast?.only ? [523, 659, 784, 1047] : myLast?.jinx ? [330, 262] : myLast?.points ? [523, 659, 784] : [220, 165]);
@@ -264,7 +274,8 @@ export default function Party() {
     if (code) await act("leave");
     setCode(null); setRoom(null); vRef.current = 0; codeRef.current = null; history.replaceState(null, "", "/party");
   }
-  function changeSettings(next: typeof settings) {
+  function changeSettings(raw: { category: string; rounds: number; seconds: number; sudden?: boolean; dna?: boolean }) {
+    const next = { ...raw, sudden: raw.sudden !== false, dna: raw.dna !== false };
     setSettings(next);
     if (room && isHost && room.phase === "lobby") void act("settings", { settings: next });
   }
@@ -292,6 +303,8 @@ export default function Party() {
       <div><small>CATEGORY</small><div className="chips">{CATS.map((c) => <button key={c} disabled={settingsLocked} className={c === (room?.settings.category ?? settings.category) ? "chip on" : "chip"} onClick={() => changeSettings({ ...(room?.settings ?? settings), category: c })}>{c}</button>)}</div></div>
       <div className="row wrap p-two">
         <div><small>ROUNDS</small><div className="chips">{[5, 7, 10].map((n) => <button key={n} disabled={settingsLocked} className={n === (room?.settings.rounds ?? settings.rounds) ? "chip on" : "chip"} onClick={() => changeSettings({ ...(room?.settings ?? settings), rounds: n })}>{n}</button>)}</div></div>
+        <div><small>SUDDEN DEATH FINAL</small><div className="chips">{[true, false].map((on) => <button key={String(on)} disabled={settingsLocked} className={on === ((room?.settings ?? settings).sudden !== false) ? "chip on" : "chip"} onClick={() => changeSettings({ ...(room?.settings ?? settings), sudden: on })}>{on ? "⚔️ on" : "off"}</button>)}</div></div>
+        <div><small>ROOM DNA</small><div className="chips">{[true, false].map((on) => <button key={String(on)} disabled={settingsLocked} className={on === ((room?.settings ?? settings).dna !== false) ? "chip on" : "chip"} onClick={() => changeSettings({ ...(room?.settings ?? settings), dna: on })}>{on ? "🧬 on" : "off"}</button>)}</div></div>
         <div><small>SECONDS PER PROMPT</small><div className="chips">{[20, 30, 45, 60].map((n) => <button key={n} disabled={settingsLocked} className={n === (room?.settings.seconds ?? settings.seconds) ? "chip on" : "chip"} onClick={() => changeSettings({ ...(room?.settings ?? settings), seconds: n })}>{n}s</button>)}</div></div>
       </div>
     </div>
@@ -318,7 +331,7 @@ export default function Party() {
       <header className="hud">
         <a className="box brand" href="/" aria-label="Back to solo game"><img className="brand-mark" src="/brand/mark.svg" alt="" />LIFTOFF<span>LE</span><small>PARTY{room ? ` · ${room.code}` : ""}</small></a>
         {room && room.phase !== "lobby" && room.phase !== "starting" && (
-          <div className="box center"><small>ROUND</small><b>{Math.min(room.round + 1, room.totalRounds)}/{room.totalRounds}</b><small className="zone">{room.settings.category.toUpperCase()}</small></div>
+          <div className={`box center${room.sd && room.round >= room.totalRounds ? " sd-box" : ""}`}><small>ROUND</small><b>{room.sd && room.round >= room.totalRounds ? "FINAL" : `${Math.min(room.round + 1, room.totalRounds)}/${room.totalRounds}`}</b><small className="zone">{room.sd && room.round >= room.totalRounds ? "SUDDEN DEATH" : room.settings.category.toUpperCase()}</small></div>
         )}
         <div className="box right"><small>{me ? `${me.avatar} ${me.name}`.toUpperCase() : "SCORE"}</small><b key={me?.score ?? 0} className="bump">{me?.score ?? 0}</b>
           <button className="mute" onClick={() => { setSound(!sound); ls.set("lo:sound", !sound); }} aria-pressed={!sound}>{sound ? "SOUND ON" : "MUTED"}</button>
@@ -387,7 +400,8 @@ export default function Party() {
                 {isHost && p.pid !== room.you && <HostMenu name={p.name} onHost={() => act("host", { pid: p.pid })} onKick={() => act("kick", { pid: p.pid })} />}</li>)}
               {room.players.length < 3 && <li className="p-empty"><span className="p-big">＋</span><span>invite friends</span></li>}
             </ul>
-            {isHost ? SettingsPicker : <p className="muted small">{room.settings.rounds} rounds · {room.settings.seconds}s each · {room.settings.category}. Waiting for the host to launch…</p>}
+            {isHost ? SettingsPicker : <p className="muted small">{room.settings.rounds} rounds · {room.settings.seconds}s each · {room.settings.category}{room.settings.sudden !== false ? " · ⚔️ sudden death final" : ""}. Waiting for the host to launch…</p>}
+            {room.settings.dna !== false && <p className="dna-note">🧬 <b>Room DNA is on.</b> The game remembers the answers you give in front of these friends (in-game answers only, kept 90 days). Repeat yourself and you lose your bonus. Traits appear on the podium.</p>}
             <div className="row wrap">
               {isHost && <button onClick={() => act("start", {}, `Writing ${room.settings.rounds} fresh prompts…`)} disabled={!!busy}>{room.players.length < 2 ? "LAUNCH SOLO ▲" : `LAUNCH ${room.players.length} ROCKETS ▲`}</button>}
               <button className="ghost" onClick={leave}>LEAVE</button>
@@ -403,7 +417,11 @@ export default function Party() {
 
         {/* ---------- answering ---------- */}
         {room?.you && room.phase === "answer" && room.prompt && (
-          countdown > 0 ? (
+          countdown > 0 && sdLive ? (
+            <SdIntro room={room} countdown={countdown} byPid={byPid} />
+          ) : sdLive && !finalist && countdown <= 0 ? (
+            <SdWatch room={room} byPid={byPid} timeLeft={timeLeft} />
+          ) : countdown > 0 ? (
             <div className="p-center p-ready">
               <small className="muted">ROUND {room.round + 1} OF {room.totalRounds}</small>
               <div key={countdown} className="p-countdown">{countdown}</div>
@@ -412,7 +430,7 @@ export default function Party() {
           ) : (
             <div>
               <div className="p-timer" style={{ ["--f" as string]: timeFrac, ["--tc" as string]: timeFrac < 0.2 ? "var(--miss)" : timeFrac < 0.5 ? "var(--t4)" : "var(--t3)" }}><i /></div>
-              <div className="rnd"><span>PROMPT {room.round + 1} OF {room.totalRounds}</span><span className={timeLeft < 5000 ? "p-hurry" : ""}>{Math.ceil(timeLeft / 1000)}s</span></div>
+              <div className="rnd"><span>{sdLive ? <b className="sd-tag">⚔️ SUDDEN DEATH · ONE SHOT · ×2 POINTS</b> : `PROMPT ${room.round + 1} OF ${room.totalRounds}`}</span><span className={timeLeft < 5000 ? "p-hurry" : ""}>{Math.ceil(timeLeft / 1000)}s</span></div>
               <h2 key={room.prompt.id} className="prompt">{room.prompt.text}</h2>
               {room.myAnswer?.final || room.myAnswer?.pending ? (
                 <div className={room.myAnswer.pending ? "p-locked checking" : "p-locked"}>
@@ -427,7 +445,7 @@ export default function Party() {
                     <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={60} placeholder="something nobody else will say…" aria-label="Your answer" autoComplete="off" spellCheck={false} disabled={!!busy} />
                     <button type="submit" disabled={!!busy || !draft.trim()}>LOCK IN</button>
                   </form>
-                  <div className="row small-actions"><span className="muted small">{room.myAnswer?.tries ? `${3 - room.myAnswer.tries} tries left` : "3 tries · fast answers earn up to +20"}</span><button className="link" onClick={() => answer(true)} disabled={!!busy}>pass</button></div>
+                  <div className="row small-actions"><span className="muted small">{sdLive ? "No retries. No edits. Make it rare." : room.myAnswer?.tries ? `${3 - room.myAnswer.tries} tries left` : "3 tries · fast answers earn up to +20"}</span><button className="link" onClick={() => answer(true)} disabled={!!busy}>pass</button></div>
                 </>
               )}
               {quickCrash ? <CrashCard text={quickCrash.text} kind={quickCrash.kind} seed={quickCrash.seed} /> : room.myAnswer?.rejected && !room.myAnswer.pending && (
@@ -443,7 +461,19 @@ export default function Party() {
         )}
 
         {/* ---------- reveal ---------- */}
-        {room?.you && room.phase === "reveal" && lastResult && (
+        {room?.you && room.phase === "reveal" && lastResult?.sd && room.sd && (
+          <div>
+            <SdReveal room={room} result={lastResult} byPid={byPid} />
+            <Standings room={room} />
+            <div className="row wrap">
+              {isHost || serverNow - room.revealAt > room.takeoverMs
+                ? <button onClick={() => act("next")} disabled={!!busy} autoFocus>SEE THE PODIUM ▲</button>
+                : <p className="muted small">Waiting for the host… (anyone can continue in {Math.max(0, Math.ceil((room.takeoverMs - (serverNow - room.revealAt)) / 1000))}s)</p>}
+            </div>
+            <Chat room={room} send={(text) => act("chat", { text })} />
+          </div>
+        )}
+        {room?.you && room.phase === "reveal" && lastResult && !lastResult.sd && (
           <div>
             <div className="rnd"><span>ROUND {room.round + 1} OF {room.totalRounds} · RESULTS</span></div>
             <p className="ptext">{lastResult.prompt}</p>
@@ -459,10 +489,11 @@ export default function Party() {
                         {r.tier && <span className="tag t">{TIER_NAMES[r.tier]} {r.jinx ? `${r.base * r.jinx}÷${r.jinx}` : r.base}</span>}
                         {r.jinx > 0 && <span className="tag j">JINX ×{r.jinx}</span>}
                         {r.only > 0 && <span className="tag o">ONLY YOU +{r.only}</span>}
+                        {r.repeat ? <span className="tag rep" title="Room DNA: you've said this in front of someone here before">SAID IT BEFORE −{r.repeat}</span> : null}
                         {r.speed > 0 && <span className="tag s">⚡+{r.speed}</span>}
                         {r.tier === "t1" && !r.jinx && <span className="tag basic">BASIC</span>}
                         {r.tier === "t5" && <span className="tag brain">GALAXY BRAIN</span>}
-                        {r.unverified && <span className="tag u" title="The AI judge was unavailable, so this was accepted on trust">UNVERIFIED</span>}
+                        {r.unverified && <span className="tag u" title="The AI judge was too busy to check this in time, so it was taken on trust and scored at the lowest tier">ON TRUST</span>}
                         {!r.tier && <span className="muted small">{r.quip}</span>}
                       </div>
                       {r.fails?.length ? <div className="bloopers">{r.fails.map((f, k) => <span key={k} title={f.why}><s>{f.text}</s></span>)}</div> : null}
@@ -475,7 +506,7 @@ export default function Party() {
             <Standings room={room} />
             <div className="row wrap">
               {isHost || serverNow - room.revealAt > room.takeoverMs
-                ? <button onClick={() => act("next")} disabled={!!busy} autoFocus>{room.round + 1 >= room.totalRounds ? "SEE THE PODIUM ▲" : "NEXT PROMPT ▲"}</button>
+                ? <button className={room.round + 1 >= room.totalRounds && room.canSudden ? "sd-btn" : undefined} onClick={() => act("next")} disabled={!!busy} autoFocus>{room.round + 1 >= room.totalRounds ? (room.canSudden ? "⚔️ SUDDEN DEATH ▲" : "SEE THE PODIUM ▲") : "NEXT PROMPT ▲"}</button>
                 : <p className="muted small">Waiting for the host… (anyone can continue in {Math.max(0, Math.ceil((room.takeoverMs - (serverNow - room.revealAt)) / 1000))}s)</p>}
               {isHost && room.round + 1 < room.totalRounds && <button className="link" onClick={() => act("end-game")} disabled={!!busy}><Icon name="flag" size={14} /> End game here</button>}
             </div>
@@ -489,6 +520,7 @@ export default function Party() {
             <h2 className="p-final-title">Mission complete</h2>
             <Podium room={room} />
             <Awards room={room} />
+            {room.settings.dna !== false && <RoomDna room={room} byPid={byPid} />}
             <Standings room={room} final />
             <HallOfShame room={room} byPid={byPid} />
             <Recap room={room} byPid={byPid} />
@@ -566,6 +598,11 @@ function Awards({ room }: { room: View }) {
   for (const res of room.results) for (const r of res.rows) if (r.tier && (!rarest || rank(r) > rank(rarest))) rarest = r;
   const name = (pid: string) => { const p = room.players.find((x) => x.pid === pid); return p ? `${p.avatar} ${p.name}` : "someone who left"; };
   const awards: [string, string, string][] = [];
+  const sdRes = room.results.find((r) => r.sd);
+  if (room.sd?.done && sdRes) {
+    const w = room.sd.winner, wr = sdRes.rows.find((r) => r.pid === w);
+    awards.push(["⚔️", w ? "Sudden Death champion" : "Sudden Death draw", w ? `${name(w)} · “${wr?.answer ?? "—"}” for +${wr?.points ?? 0}` : room.sd.finalists.map(name).join(" and ") + " couldn't be split"]);
+  }
   const orig = tally((r) => (r.only ? 1 : 0)); if (orig) awards.push(["🦄", "Most original", `${name(orig[0])} · ${orig[1]} ${orig[1] === 1 ? "answer" : "answers"} nobody else said`]);
   if (rarest) awards.push(["💎", "Rarest answer", `${name(rarest.pid)} · “${rarest.answer}” (${TIER_NAMES[rarest.tier!]})`]);
   const fast = tally((r) => r.speed); if (fast) awards.push(["⚡", "Fastest fingers", `${name(fast[0])} · +${fast[1]} speed points`]);
@@ -597,6 +634,95 @@ function Confetti() {
     color: ["var(--t2)", "var(--t3)", "var(--t4)", "var(--t5)", "#fff"][i % 5], w: 6 + Math.random() * 6,
   })), []);
   return <div className="p-confetti" aria-hidden="true">{bits.map((b, i) => <i key={i} style={{ left: `${b.left}%`, animationDelay: `${b.delay}s`, animationDuration: `${b.dur}s`, background: b.color, width: b.w, transform: `rotate(${b.rot}deg)` }} />)}</div>;
+}
+
+// ------------------------------------------------------------------ Room DNA
+/** Each player's strongest traits, built from every party game they've played. */
+function RoomDna({ room, byPid }: { room: View; byPid: Map<string, Player> }) {
+  if (!room.dna) return <p className="dna-card loading muted small"><span className="dot" />Sequencing your crew&apos;s DNA…</p>;
+  const ids = Object.keys(room.dna);
+  if (!ids.length) return null;
+  return (
+    <div className="dna-card">
+      <div className="dna-head"><b>🧬 ROOM DNA</b><small>from every party game you&apos;ve played</small></div>
+      <ul>{ids.map((pid, i) => { const d = room.dna![pid], p = byPid.get(pid); return (
+        <li key={pid} className={pid === room.you ? "you" : ""} style={{ animationDelay: `${1.4 + i * 0.12}s` }}>
+          <span className="p-big">{p?.avatar ?? "👻"}</span>
+          <div className="dna-main">
+            <div className="dna-name"><b>{p?.name ?? "left"}</b><small>{d.games} game{d.games === 1 ? "" : "s"} · {d.answers} answers{d.repeats ? ` · ${d.repeats} repeat${d.repeats === 1 ? "" : "s"} today` : ""}</small></div>
+            {d.traits.map((t, k) => (
+              <div key={t.id} className="dna-trait"><span>{t.e} {t.name}</span><span className="bar"><i style={{ width: `${t.pct}%`, animationDelay: `${1.6 + i * 0.12 + k * 0.1}s` }} /></span><span className="pc">{t.pct}%</span></div>
+            ))}
+          </div>
+        </li>
+      ); })}</ul>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ Sudden Death
+/** The face-off card during the countdown: two rockets, VS, and the rules. */
+function SdIntro({ room, countdown, byPid }: { room: View; countdown: number; byPid: Map<string, Player> }) {
+  const [a, b] = room.sd!.finalists.map((pid) => byPid.get(pid));
+  return (
+    <div className="sd-intro">
+      <small className="sd-kicker">THE FINAL {room.sdSeconds} SECONDS</small>
+      <h2 className="sd-title">SUDDEN DEATH</h2>
+      <div className="sd-vs">
+        <div className="sd-side l"><span className="p-big">{a?.avatar ?? "👻"}</span><b>{a?.name ?? "left"}</b><small>{a?.score ?? 0} pts</small></div>
+        <div className="sd-x">VS</div>
+        <div className="sd-side r"><span className="p-big">{b?.avatar ?? "👻"}</span><b>{b?.name ?? "left"}</b><small>{b?.score ?? 0} pts</small></div>
+      </div>
+      <div key={countdown} className="p-countdown sd-count">{countdown}</div>
+      <p className="muted small">One prompt · {room.sdSeconds} seconds · one shot, no retries · rarity points ×2</p>
+    </div>
+  );
+}
+
+/** What everyone else sees while the finalists answer. */
+function SdWatch({ room, byPid, timeLeft }: { room: View; byPid: Map<string, Player>; timeLeft: number }) {
+  return (
+    <div className="sd-watch">
+      <div className="rnd"><span><b className="sd-tag">⚔️ SUDDEN DEATH</b></span><span className={timeLeft < 5000 ? "p-hurry" : ""}>{Math.ceil(timeLeft / 1000)}s</span></div>
+      <h2 className="prompt">{room.prompt?.text}</h2>
+      <div className="sd-vs small">
+        {room.sd!.finalists.map((pid, i) => { const p = byPid.get(pid); return (
+          <div key={pid} className={`sd-side ${i ? "r" : "l"}${p?.done ? " locked" : ""}`}><span className="p-big">{p?.avatar ?? "👻"}</span><b>{p?.name ?? "left"}</b><small>{p?.done ? "LOCKED IN ✓" : "thinking…"}</small></div>
+        ); })}
+      </div>
+      <p className="muted small">You're watching the final. Answers reveal together when both lock in.</p>
+    </div>
+  );
+}
+
+/** Both answers flip over at once, then the winner is crowned. */
+function SdReveal({ room, result, byPid }: { room: View; result: { prompt: string; rows: Row[] }; byPid: Map<string, Player> }) {
+  const w = room.sd!.winner;
+  return (
+    <div className="sd-reveal">
+      <small className="sd-kicker">SUDDEN DEATH · RESULTS</small>
+      <p className="ptext">{result.prompt}</p>
+      <div className="sd-vs">
+        {room.sd!.finalists.map((pid, i) => {
+          const p = byPid.get(pid), r = result.rows.find((x) => x.pid === pid);
+          return (
+            <div key={pid} className={`sd-card ${i ? "r" : "l"}${w === pid ? " win" : w ? " lose" : ""}`} style={{ ["--tc" as string]: r?.tier ? `var(--${r.tier})` : "var(--miss)" }}>
+              <div className="sd-flip"><div className="sd-front">?</div>
+                <div className="sd-back">
+                  <span className="p-big">{p?.avatar ?? "👻"}</span><b>{p?.name ?? "left"}</b>
+                  <div className="sd-ans">{r?.answer ? `“${r.answer}”` : "—"}</div>
+                  <small>{r?.tier ? TIER_NAMES[r.tier] : "NO ANSWER"}{r?.jinx ? " · JINX" : ""}</small>
+                  <span className="sd-pts">+<CountUp to={r?.points ?? 0} delay={1500} /></span>
+                </div>
+              </div>
+              {w === pid && <div className="sd-crown"><Icon name="crown" size={26} /><span>CHAMPION</span></div>}
+            </div>
+          );
+        })}
+      </div>
+      {!w && <p className="sd-draw">A perfect draw. The universe couldn&apos;t pick.</p>}
+    </div>
+  );
 }
 
 // ------------------------------------------------------------------ extra pieces
